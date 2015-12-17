@@ -1,0 +1,9 @@
+{
+	"data":[
+			{
+				"state": 1,
+				"error": "upload fail.",
+				"url":"http://cn.babybus.com/favicon.png"
+			}
+	]
+}
