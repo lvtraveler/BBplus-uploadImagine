@@ -151,10 +151,14 @@
 		<script src="js/jquery.form.js" defer="defer" async="async"></script>
     <script src="http://apps.bdimg.com/libs/bootstrap/3.3.4/js/bootstrap.min.js" type="text/javascript"></script>
     <script src="js/download.js" type="text/javascript" defer="defer" async="async"></script>
-    
+<!--
+*	
+***拖拽上传***
+*
+-->    
 <script type="text/javascript">
 $(function(){
-	//阻止浏览器默认行。
+	//阻止浏览器默认行为。
 	$(document).on({
 		dragleave:function(e){		//拖离
 			e.preventDefault();
@@ -176,6 +180,8 @@ $(function(){
 		var fileList = e.dataTransfer.files; //获取文件对象
 		var fileFilter=[];//过滤后的文件数组
 		var len=fileList.length;
+		var FileUploadController="./js/upload.json";//上传接口
+		var FileCompressController="./js/compress.json";//压缩接口
 		//检测是否是拖拽文件到页面的操作
 		if(fileList.length == 0){
 			return false;
@@ -183,10 +189,11 @@ $(function(){
 		//检测文件是不是图片
 		for(var i=0;i<len;i++){
 			if(fileList[0].type.indexOf('image') === -1){
-				alert("您拖的不是图片！");
+				alert("您拖的"+fileList[i].name+"不是图片！");//提示某文件名不是图片
 				return false;
 			}
 		}
+		console.log(fileList.length);
 		//拖拉图片到浏览器，可以实现预览功能
 		for(var i=0;i<fileList.length;i++){
 			var img = window.URL.createObjectURL(fileList[i]);//获取图像截图
@@ -196,89 +203,91 @@ $(function(){
 				alert("上传大小不能超过5MB.");
 				return false;
 			}
-				var imgPreviewNum=$(".imgPreview").length;
-        var str = "<div class='imgPreview imgPreviewNum"+imgPreviewNum+"'><span class='imageHolder'><img src='"+img+"' style='height:95px;width:95px;' title='"+filename+"'></span><div class='progress'><div class='progress-bar progress-bar-striped active' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100' style='width:100%'><span class='progress-state'>上传中...</span></div></div><p>图片名称："+filename+"</p><p class='size'>大小："+filesize+"KB</p><p class='size_compress'></p><a class='url_download' href='#' target='_blank' download='"+filename+"'>下载</a><input class='chk_download' type='checkbox' name='files' value='' checked /><p class='state'></p></div>";
-        $("#preview").append(str);
-				//改变熊猫图片状态
+		var imgPreviewNum=$(".imgPreview").length;//图片预览序号
+		//图片预览框
+    var str = "<div class='imgPreview imgPreviewNum"+imgPreviewNum+"'><span class='imageHolder'><img src='"+img+"' style='height:95px;width:95px;' title='"+filename+"'></span><div class='progress'><div class='progress-bar progress-bar-striped active' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100' style='width:100%'><span class='progress-state'>上传中...</span></div></div><p>图片名称："+filename+"</p><p class='size'>大小："+filesize+"KB</p><p class='size_compress'></p><a class='url_download' href='#' target='_blank' download='"+filename+"'>下载</a><input class='chk_download' type='checkbox' name='files' value='' checked /><p class='state'></p></div>";
+    $("#preview").append(str);//插入预览的图片
+		//改变熊猫图片状态
 		$('.kv-main').css("background-image","url(./img/panda-png-happy.png)");
 		//添加文件
 		var files=event.target.files||event.dataTransfer.files;
 		fileFilter=fileFilter.concat(filter(files));
-		}
-			//文件上传
-		var self=this;
-		if(location.host.indexOf("sitepointstatic")>=0) {
-			return; //非站点服务器上运行
-		}
-		for(var i=0,file;file=fileFilter[i];i++) {
-		(function(file){
-				//开始上传
-				$.get('./js/upload.json','',function(data){
-						var upload_data=data.data;
-						var upload_len=upload_data.length;
-						for(var i=0;i<upload_len;i++){
-							var upload_state=upload_data[i].state;
-							var upload_url=upload_data[i].url;
-							if(upload_state){
-								//上传成功
-								$('.progress-state').text('正在压缩...');
-								$('.url_download').hide();
-								$('.chk_download').hide();
-								//请求压缩数据
-								$.post('./js/compress.json',{"url":upload_url},function(data){
-									var compress_error=data.error;//压缩状态
-									var compress_url=data.url;//压缩后的下载路径
-									var compress_size=data.size;//压缩大小
-									//填充数据
-									if(compress_error){
-										//压缩成功
-										$('.progress-state').text('压缩完成!');
-										$('.progress-bar-striped').removeClass('active');
-										$('.url_download').show();
-										$('.chk_download').show();
-										$('.size_compress').text("压缩大小:"+compress_size);
-										$('.url_download').attr("href",compress_url);
-										$('input[name="files"]').val(compress_url);
-                    var imgUrl=$('.imageHolder img').attr('src');
-                    $('.add_cart').attr('href',imgUrl);
-                    	//获取已选择的下载个数
-										var count_download=$(':checked').length;
-										$('.items').text(count_download);
-										$('#d_c').text(count_download);
-									}else{
-										//压缩失败
-										$('.url_download').text("压缩失败!");
-									}
-								});
-								
-							}else{
-								//不成功
-								$('.progress-bar').css('background-color','#E63D3D');
-								$('.progress-state').text('上传失败!');
-								return false;
-							}
+		//上传
+		xhr=new XMLHttpRequest();
+		xhr.open("POST",FileUploadController,true);
+		xhr.onreadystatechange=callback;//在readystatechange事件上绑定一个事件处理函数
+		xhr.setRequestHeader("X-Requested-With","XMLHttpRequest");
+		var fd=new FormData();
+		fd.append('mypic'+imgPreviewNum,fileList[i]);
+		xhr.send(fd);
+		//当接收到数据时，会调用readystatechange事件上得事件处理函数——callback()
+		function callback() {
+			if(xhr.readyState==4&&xhr.status==200) {
+				console.log("aaa");
+				var uploadData=JSON.parse(xhr.responseText);
+				var uploadState=uploadData.state;//获取上传状态：1-成功；0-失败；
+				var uploadUrl=uploadData.url;//获取后端给出的图片URL路径
+				if(uploadState==1) {
+					$('.progress-state').text('上传成功!');//进度条状态
+					//提交请求-压缩
+					$.post(FileCompressController,{"url":uploadUrl},function(data){
+//					var compressData=JSON.parse(data);
+						var compressState=data.error;//压缩状态:0-失败；1-成功；
+						var compressUrl=data.url;//压缩成功-下载路径
+						var compressSize=data.size;//压缩大小
+						console.log(compressState);
+						if(compressState==1) {
+							//进度条状态
+							$('.progress-state').text('压缩完成!');
+							$('.progress-bar-striped').removeClass('active');
+							//下载设置
+							$('.url_download').show();
+							$('.chk_download').show();
+							$('.size_compress').text("压缩大小:"+compressSize);
+							$('.url_download').attr("href",compressUrl);
+							$('input[name="files"]').val(compressUrl);
+							var imgUrl=$('.imageHolder img').attr('src');
+							$('.add_cart').attr('href',imgUrl);
+							//获取已选择的下载个数
+							var count_download=$(':checked').length;
+							$('.items').text(count_download);
+							$('#d_c').text(count_download);
+						}else {
+							//进度条状态
+							$('.url_download').text("压缩失败!");
+							$('.progress-bar').css('background-color','#E63D3D');
+							return false;
 						}
-						
-				},'json');
-				
-		})(file);
-	}
-	
-});
+					},'json');
+				}else {
+					//进度条状态
+					$('.progress-state').text('上传失败!');
+					$('.progress-bar').css('background-color','#E63D3D');
+					return false;
+				}
+			}
+		}
+		}	
+},false);
 });
 </script>
-<!--点击上传触发事件-->
+
+<!--
+*	
+***点击上传***
+* 
+* -->
 <script>
 //加载进度条
 var timer=null;
 var width=0;
 var filter=function(files){
    	return files;
-   }
+}
 //点击上传
 function uploadFile(obj){
 		var fileList=obj.files;//获取上传文件对象
-   	var fileFilter=[];//过滤后的文件数组
+   		var fileFilter=[];//过滤后的文件数组
 		var len=fileList.length;
 		for(var i=0;i<len;i++){
 			//判断是否是图片类型的文件
@@ -296,10 +305,10 @@ function uploadFile(obj){
 					alert("上传大小不能超过5MB.");
 					return false;
 				}
-			//预览图片
-				var imgPreviewNum=$(".imgPreview").length;
-        var str = "<div class='imgPreview imgPreviewNum"+imgPreviewNum+"'><span class='imageHolder'><img src='"+img+"' style='height:95px;width:95px;' title='"+filename+"'></span><div class='progress'><div class='progress-bar progress-bar-striped active' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100' style='width:100%'><span class='progress-state'>上传中...</span></div></div><p>图片名称："+filename+"</p><p class='size'>大小："+filesize+"KB</p><p class='size_compress'></p><a class='url_download' href='#' target='_blank' download='"+filename+"'>下载</a><input class='chk_download' type='checkbox' name='files' value='' checked /><p class='state'></p></div>";
-        $("#preview").append(str);
+		//预览图片
+		var imgPreviewNum=$(".imgPreview").length;
+    var str = "<div class='imgPreview imgPreviewNum"+imgPreviewNum+"'><span class='imageHolder'><img src='"+img+"' style='height:95px;width:95px;' title='"+filename+"'></span><div class='progress'><div class='progress-bar progress-bar-striped active' role='progressbar' aria-valuenow='100' aria-valuemin='0' aria-valuemax='100' style='width:100%'><span class='progress-state'>上传中...</span></div></div><p>名称："+filename+"</p><p class='size'>大小："+filesize+"KB</p><p class='size_compress'></p><a class='url_download' href='#' target='_blank' download='"+filename+"'>下载</a><input class='chk_download' type='checkbox' name='files' value='' checked /><p class='state'></p></div>";
+    $("#preview").append(str);
 		//改变熊猫图片状态
 		$('.kv-main').css("background-image","url(./img/panda-png-happy.png)");
 		//添加文件
@@ -307,63 +316,72 @@ function uploadFile(obj){
 		fileFilter=fileFilter.concat(filter(files));
 	}
 	//文件上传
-	var self=this;
+	// var FileController="http://www.zhangxinxu.com/study/201109/upload.php";
+	var FileUploadController="./js/upload.json";
+	var FileCompressController="./js/compress.json";
 	if(location.host.indexOf("sitepointstatic")>=0) {
 		return; //非站点服务器上运行
 	}
 	for(var i=0,file;file=fileFilter[i];i++) {
 		(function(file){
 				//开始上传
-				$.get('./js/upload.json','',function(data){
-						var upload_data=data.data;
-						var upload_len=upload_data.length;
-						for(var i=0;i<upload_len;i++){
-							var upload_state=upload_data[i].state;
-							var upload_url=upload_data[i].url;
-							if(upload_state){
+				var xhr = new XMLHttpRequest();
+				var form = new FormData();
+				form.append("upload_pic", file[0]);
+				//开始上传
+				xhr.open("POST",FileUploadController,true);
+				xhr.onreadystatechange=callback;//在readystatechange事件上绑定一个事件处理函数
+				//当接收到数据时，会调用readystatechange事件上得事件处理函数——callback()
+				xhr.setRequestHeader("X_FILENAME",file[i].name);
+				xhr.send(form);
+				function callback() {
+					if(xhr.readyState==4) {
+						if(xhr.status==200) {
+							var jsonData=JSON.parse(xhr.responseText);
+							var state=jsonData.state;
+							if(state==1) {
 								//上传成功
-								$('.progress-state').text('正在压缩...');
-								$('.url_download').hide();
-								$('.chk_download').hide();
-								//请求压缩数据
-								$.post('./js/compress.json',{"url":upload_url},function(data){
-									data=JSON.parse(data);
+								$('.progress-state').text('上传成功!');
+								$('.chk_download,.url_download').show();
+								var upload_url=xhr.responseText.url;
+								//进行压缩请求
+								$.post(FileCompressController,{"url":upload_url},function(data){
+//									data=JSON.parse(data);
 									var compress_error=data.error;//压缩状态
 									var compress_url=data.url;//压缩后的下载路径
 									var compress_size=data.size;//压缩大小
 									//填充数据
-									if(compress_error){
+									if(compress_error==1){
 										//压缩成功
 										$('.progress-state').text('压缩完成!');
 										$('.progress-bar-striped').removeClass('active');
 										$('.url_download').show();
 										$('.chk_download').show();
-										
 										$('.size_compress').text("压缩大小:"+compress_size);
 										$('.url_download').attr("href",compress_url);
 										$('input[name="files"]').val(compress_url);
-                    var imgUrl=$('.imageHolder img').attr('src');
-                    $('.add_cart').attr('href',imgUrl);
-                    	//获取已选择的下载个数
+                 		var imgUrl=$('.imageHolder img').attr('src');
+                 		$('.add_cart').attr('href',imgUrl);
+                 		//获取已选择的下载个数
 										var count_download=$(':checked').length;
 										$('.items').text(count_download);
 										$('#d_c').text(count_download);
 									}else{
 										//压缩失败
 										$('.url_download').text("压缩失败!");
+										return false;
 									}
-								});
-								
+
+								},'json');
 							}else{
-								//不成功
+								//上传失败
 								$('.progress-bar').css('background-color','#E63D3D');
 								$('.progress-state').text('上传失败!');
 								return false;
 							}
 						}
-						
-				},'json');
-				
+					}
+				}
 		})(file);
 	}
 }
@@ -396,40 +414,6 @@ function onChange(width){
 			});
 </script>
 <script type="text/javascript">
-//添加
-    $('.add_cart').on('click',function(){
-        var file=$(this).attr('href');
-        var title=$(this).attr('id');
-        $("div#cart_container").fadeIn("medium");
-        var offset = $(this).offset();
-        var offsetfavbar = $("div#cart_container").offset();
-        $(".flyingAdd").css('left', offset.left + 'px');
-        $(".flyingAdd").css('top', offset.top + 'px');
-        $(".flyingAdd").animate({
-            left: (offsetfavbar.left + 200) + "px",
-            top: (offsetfavbar.top) + "px",
-            opacity: "0.1",
-            fontSize: "0px"
-        }, 400, function () {
-            $(".flyingAdd").css({left: "-1000px", top: "-100px", opacity: "1", fontSize: "50px"})
-        });
-        $.ajax({
-            url: '/js/zipcart.json',
-            data: 'cart=1&file=' + file + '&title=' + title,
-            success: function ($files) {
-                $('ul#file_cart').html("");
-                $($files).appendTo('ul#file_cart').show();
-                var size = $('ul#file_cart > li').size();
-                $('.items').text(size);
-                $('#d_c').text(size);
-                if (size > 50) {
-                    $('#info_alert').text('最多打包50个！');
-                    alert("一次最后打包下载50个!");
-                }
-            }
-        });
-        return false;
-    });
 //清空
 $('a.clear').on('click', function () {
     if (!confirm('确定清空?')) {
@@ -449,32 +433,8 @@ $('a.clear').on('click', function () {
     $('#d_c').text("0");
     return false;
 });
-// 打包下载
-//$('a.download').on('click', function () {
-//  var downloads = new Array();
-//  $('ul#file_cart > li a').each(function (i, val) {
-//      downloads[i] = $(this).attr('title');
-//  });
-//  if (downloads.length == 0) {
-//      alert('您的文件已空!');
-//  }
-//  else if (downloads.length < 51) {
-//      $('div#cart_container').fadeOut("medium", function () {
-//          $('ul#file_cart').html("");
-//      });
-//      var idarry = downloads.join();
-//      window.location.href = '/js/get_zip_api.json?id=' +idarry;
-//      $('.items').text("0");
-//      $('#d_c').text("0");
-//  } else {
-//      alert('一次最后打包下载50个!');
-//  }
-//  return false;
-//});
 
 //使用客户端的方式打包下载
-
-
 
 //隐藏
 $('a.clo_x_a').on('click', function () {
@@ -485,16 +445,6 @@ $('a.show_cart').on('click', function () {
     if (!$('div#cart_container').is(':visible')) {
         $('div#cart_container').fadeIn("medium", function () {
             $('<img class="cartloader" src="img/ajax-loader.gif"/>').insertBefore($('ul#file_cart'));
-//          $.ajax({
-//              url: '/js/zipcart.json', data: 'showcart=1', success: function ($files) {
-//                  $('img.cartloader').fadeOut();
-//                  $('ul#file_cart').html("");
-//                  if (!$files) {
-//                      $files = "<div class='nofiles'>No files in your cart, click '+' add files</div>";
-//                  }
-//                  $('ul#file_cart').html($files).fadeIn();
-//              }
-//          });
         });
     } else {
         $('div#cart_container').fadeOut();
